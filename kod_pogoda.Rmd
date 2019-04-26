@@ -16,7 +16,7 @@ names(pogodaDF) <- n
 
 save(pogodaDF, file="pogoda.RData")
 
-load("pogoda.RData")
+pogodaDF <- load("pogoda.RData")
 
 ```
 
@@ -39,8 +39,9 @@ Pogoda dla Warszawy
 
 ```{r}
 colnames(pogodaDFs,do.NULL = TRUE,prefix = "col") 
-pogodaWarszawa <- pogodaDFs %>% filter(nazwa=='WARSZAWA-BIELANY'| nazwa=='WARSZAWA-FILTRY'|
-       nazwa=='WARSZAWA-BABICE' | nazwa=='WARSZAWA-OBSERWATORIUM II')
+pogodaWarszawa <- pogodaDFs %>% filter(nazwa=='WARSZAWA-BIELANY'|                                                        nazwa=='WARSZAWA-FILTRY'|
+                                       nazwa=='WARSZAWA-BABICE'|
+                                       nazwa=='WARSZAWA-OBSERWATORIUM II')
 ```
 
 
