@@ -1,0 +1,53 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+library(ggplot2)
+
+install.packages("readxl")
+library(readxl)
+install.packages("readxl")
+
+```
+wczytywanie danych
+```{r}
+pyly <- read_excel("/licencjat/DanePyly2013-2017.xlsx")
+head(pyly)
+colnames(pyly,do.NULL = TRUE,prefix = "col") 
+library(lubridate)
+```
+grupujemy pyły na miesiące
+```{r}
+library(dplyr)
+
+pyly_miesiac <- group_by() 
+```
+```{r}
+ggplot(data=pyly, aes(x=czas,y=MzWarKondratPM25_24g))+geom_point()
+
+```
+```{r}
+ggplot(data=pyly, aes(x=czas,y=MzWarWokalnaPM25_24g))+geom_point()
+```
+```{r}
+ggplot(data=pyly, aes(x=czas,y=MzWarAKrzywoPM10_24g))+geom_point()
+```
+```{r}
+ggplot(data=pyly, aes(x=czas,y=MzWarTolstojPM10_24g))+geom_point()
+```
+
+```{r}
+summary(pyly)
+```
+
+
+
+
+
+
+
+
+

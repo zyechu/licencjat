@@ -1,0 +1,48 @@
+
+Nadanie nazw kolumnom i zgranie danych dotycz?cych o pogodzie.
+```{r}
+n <- c("id", "nazwa", "rok", "miesiac", "dzien", 
+       "srednia_dobowa_temperatura", "status pomiaru TEMP", "?rednia dobowa wilgotno?? wzgl?dna[%]", "status pomiaru WLGS", "?rednia dobowa pr?dko?ci wiatru[m/s]", "Status pomiaru FWS", "?rednie dobowe zachmurzenie og?lne[oktanty]", "status pomiaru NOS")
+
+files <- list.files(path = "/licencjat/pogoda", pattern = "*.csv", full.names = TRUE)
+pogodaDF <- data.frame()
+
+for(i in 1:length(files)){
+  a <- read.csv(file = files[i], header = F)
+  pogodaDF <- rbind(pogodaDF,a)
+}
+
+names(pogodaDF) <- n
+
+save(pogodaDF, file="pogoda.RData")
+
+load("pogoda.RData")
+
+```
+
+
+install.packages("lubridate")
+```{r}
+library(dplyr)
+library(lubridate)
+
+pogodaDFs <- pogodaDF %>%
+              mutate(data =make_date(rok,miesiac,dzien)) %>%
+              select("id", "nazwa", "data", 
+       "srednia_dobowa_temperatura", "status pomiaru TEMP", "?rednia dobowa wilgotno?? wzgl?dna[%]", "status pomiaru WLGS", "?rednia dobowa pr?dko?ci wiatru[m/s]", "Status pomiaru FWS", "?rednie dobowe zachmurzenie og?lne[oktanty]", "status pomiaru NOS")
+
+#pogodaDFsnumeric <- pogodaDFs %>% mutate(as.integer(rok))
+summary(pogodaDFs)
+```
+
+Pogoda dla Warszawy
+
+```{r}
+colnames(pogodaDFs,do.NULL = TRUE,prefix = "col") 
+pogodaWarszawa <- pogodaDFs %>% filter(nazwa=='WARSZAWA-BIELANY'| nazwa=='WARSZAWA-FILTRY'|
+       nazwa=='WARSZAWA-BABICE' | nazwa=='WARSZAWA-OBSERWATORIUM II')
+```
+
+
+
+
