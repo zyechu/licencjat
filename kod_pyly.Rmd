@@ -9,12 +9,12 @@ library(ggplot2)
 
 install.packages("readxl")
 library(readxl)
-install.packages("readxl")
+
 
 ```
 wczytywanie danych
 ```{r}
-pyly <- read_excel("/licencjat/DanePyly2013-2017.xlsx")
+pyly <- read_excel("C:/Users/51727/Desktop/licencjat/DanePyly2013-2017.xlsx")
 head(pyly)
 colnames(pyly,do.NULL = TRUE,prefix = "col") 
 library(lubridate)
@@ -25,6 +25,7 @@ library(dplyr)
 
 pyly_miesiac <- group_by() 
 ```
+
 ```{r}
 ggplot(data=pyly, aes(x=czas,y=MzWarKondratPM25_24g))+geom_point()
 
@@ -43,6 +44,38 @@ ggplot(data=pyly, aes(x=czas,y=MzWarTolstojPM10_24g))+geom_point()
 summary(pyly)
 ```
 
+Wyznaczenie linii wielomianu dla pogody
+```{r}
+library(stats)
+library(splines)
+library(dplyr)
+library(grid)
+library(tibble)
+library(ggplot2)
+library(modelr)
+library(tidyverse)
+library(tidyr)
+#MzWarKondratPM25_24g
+
+MzWarKondrat <- pyly %>% select(x=czas, y=MzWarKondratPM25_24g)
+
+
+mod1 <-lm(y ~ ns(x, df=1), data=MzWarKondrat)
+mod2 <-lm(y ~ ns(x, 2), data=MzWarKondrat)
+mod3 <-lm(y ~ ns(x, 3), data=MzWarKondrat)
+mod4 <-lm(y ~ ns(x, 4), data=MzWarKondrat)
+mod5 <-lm(y ~ ns(x, df=10), data=MzWarKondrat)
+
+grid <- MzWarKondrat %>% 
+  data_grid(x = seq_range(x, n=50,expand = 0.1)) %>%
+  gather_predictions(mod1,mod5, .pred = "y")
+
+ggplot(MzWarKondrat, aes(x,y)) + 
+  geom_point() +
+  geom_line(data = grid,color ="red") + 
+  facet_wrap(~ model)
+
+```
 
 
 
