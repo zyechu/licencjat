@@ -76,7 +76,25 @@ ggplot(MzWarKondrat, aes(x,y)) +
   facet_wrap(~ model)
 
 ```
-
+model HoltWinters
+```{r}
+library(dplyr)
+pyly_MzWarKondrat <- pyly %>% select(MzWarKondratPM25_24g) 
+pyly_MzWarKondrat <- na.omit(pyly_MzWarKondrat)
+pylyHoltWinter <- ts(pyly_MzWarKondrat, frequency = 365, start = c(2013,1))
+pylyHoltWinter
+pylyHoltWintersModel <- HoltWinters(pylyHoltWinter)
+pylyHoltWintersModel
+plot(pylyHoltWintersModel,lwd=3)
+#install.packages("forecast")
+#library(forecast)
+#pyly_MzWarKondratPrognoza <- forecast.HoltWinters(pylyHoltWintersModel)
+#plot(pyly_MzWarKondratPrognoza)
+p <- predict(pylyHoltWintersModel, 365, prediction.interval = FALSE)
+plot(pylyHoltWintersModel,p)
+#birthsForecast <- forecast.HoltWinters(birthsModel, h=24)
+#plot(birthsForecast)
+```
 
 
 

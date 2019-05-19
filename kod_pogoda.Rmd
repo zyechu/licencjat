@@ -27,23 +27,29 @@ install.packages("lubridate")
 library(dplyr)
 library(lubridate)
 
-pogodaDFs <- pogodaDF %>%
-              mutate(data =make_date(rok,miesiac,dzien)) %>%
-              select("id", "nazwa", "data", 
-       "srednia_dobowa_temperatura", "status pomiaru TEMP", "?rednia dobowa wilgotno?? wzgl?dna[%]", "status pomiaru WLGS", "?rednia dobowa pr?dko?ci wiatru[m/s]", "Status pomiaru FWS", "?rednie dobowe zachmurzenie og?lne[oktanty]", "status pomiaru NOS")
 
-#pogodaDFsnumeric <- pogodaDFs %>% mutate(as.integer(rok))
-summary(pogodaDFs)
 ```
+```{r}
+
+load("pogoda.RData")
+
+pogodaDF <- janitor::clean_names(pogodaDF)
+
+pogoda_wawa <- pogodaDF %>%
+  filter(nazwa == "WARSZAWA-BIELANY") %>%
+  mutate(czas=paste(rok,miesiac,dzien, sep="-"),
+         czas=ymd(czas)) %>%
+  select(czas, temp=srednia_dobowa_temperatura,    wilgotnosc=rednia_dobowa_wilgotno_wzgl_dna_percent, wiatr=rednia_dobowa_pr_dko_ci_wiatru_m_s, chmury=rednie_dobowe_zachmurzenie_og_lne_oktanty)
+
+summary(pogoda_wawa)
+```
+
 
 Pogoda dla Warszawy
 
-```{r}
-colnames(pogodaDFs,do.NULL = TRUE,prefix = "col") 
-pogodaWarszawa <- pogodaDFs %>% filter(nazwa=='WARSZAWA-BIELANY'|                                                        nazwa=='WARSZAWA-FILTRY'|
-                                       nazwa=='WARSZAWA-BABICE'|
-                                       nazwa=='WARSZAWA-OBSERWATORIUM II')
-```
+
+
+
 ```{r}
 library(dplyr)
 library(ggplot2)
@@ -70,7 +76,7 @@ pogodaWarszawa %>%
 ggplot(aes(x=data,y=rednia_dobowa_pr_dko_ci_wiatru_m_s))+geom_point()
 
 ```
-```{r}
+
 Wyznaczenie linii wielomianu dla pogody
 ```{r}
 library(stats)
