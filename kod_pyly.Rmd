@@ -7,42 +7,65 @@ output: html_notebook
 ```{r}
 library(ggplot2)
 
-install.packages("readxl")
 library(readxl)
-
+library(ggplot2)
+library(dplyr)
 
 ```
 wczytywanie danych
 ```{r}
-pyly <- read_excel("C:/Users/51727/Desktop/licencjat/DanePyly2013-2017.xlsx")
+pyly <- read_excel("C:/Users/51727/Desktop/licencjat/DanePyly2013-2017.xlsx") %>%                       mutate(czas=as_date(czas)) %>%                                                      select(czas,MzWarTolstojPM10_24g,MzWarKondratPM25_24g)
 head(pyly)
 colnames(pyly,do.NULL = TRUE,prefix = "col") 
 library(lubridate)
-```
-grupujemy pyły na miesiące
-```{r}
-library(dplyr)
-
-pyly_miesiac <- group_by() 
+pogoda_pyly <- inner_join(pogoda_wawa, pyly)
 ```
 
-```{r}
-ggplot(data=pyly, aes(x=czas,y=MzWarKondratPM25_24g))+geom_point()
-
-```
-```{r}
-ggplot(data=pyly, aes(x=czas,y=MzWarWokalnaPM25_24g))+geom_point()
-```
-```{r}
-ggplot(data=pyly, aes(x=czas,y=MzWarAKrzywoPM10_24g))+geom_point()
-```
-```{r}
-ggplot(data=pyly, aes(x=czas,y=MzWarTolstojPM10_24g))+geom_point()
-```
+imputacja danych dla pyłów
 
 ```{r}
-summary(pyly)
+library(VIM)
+pogoda_pyly_imp <- kNN(data = pogoda_pyly, 
+                 variable = c("MzWarKondratPM25_24g", "MzWarTolstojPM10_24g"), 
+                 k = 20, 
+                 numFun = median, 
+                 dist_var = c("temp", "wilgotnosc", "wiatr", "chmury", "MzWarKondratPM25_24g",  "MzWarTolstojPM10_24g"))
+
+summary(pogoda_pyly_imp)
+
+
 ```
+Dodanie dnia tygodnia i dni weekendowych
+```{r}
+pogoda_pyly_imp <- pogoda_pyly_imp %>% mutate(dzien_tygodnia=weekdays(czas),czyWeekend=ifelse(dzien_tygodnia=="sobota"|dzien_tygodnia=="niedziela",TRUE,FALSE))
+summary(pogoda_pyly_imp)
+
+```
+
+podział danych na dane trenujące i testowe
+```{r}
+train <- pogoda_pyly_imp %>%
+  filter(year(czas) < 2017)
+
+summary(train)
+
+test <- pogoda_pyly_imp %>%
+  filter(year(czas) == 2017)
+
+summary(test)
+```
+
+
+```{r}
+ggplot(data=pogoda_pyly_imp, aes(x=czas,y=MzWarKondratPM25_24g))+geom_point()
+
+```
+
+```{r}
+ggplot(data=pogoda_pyly_imp, aes(x=czas,y=MzWarTolstojPM10_24g))+geom_point()
+```
+
+
 
 Wyznaczenie linii wielomianu dla pogody
 ```{r}
@@ -78,23 +101,41 @@ ggplot(MzWarKondrat, aes(x,y)) +
 ```
 model HoltWinters
 ```{r}
+summary(train)
+library(forecast)
 library(dplyr)
-pyly_MzWarKondrat <- pyly %>% select(MzWarKondratPM25_24g) 
-pyly_MzWarKondrat <- na.omit(pyly_MzWarKondrat)
-pylyHoltWinter <- ts(pyly_MzWarKondrat, frequency = 365, start = c(2013,1))
+pyly_MzWarKondrat <- train %>% select(MzWarKondratPM25_24g)
+
+pylyHoltWinter <- ts(pyly_MzWarKondrat, frequency = 12, start = c(2013,1),end = c(2016,365))
+pylyHoltWinter
 pylyHoltWinter
 pylyHoltWintersModel <- HoltWinters(pylyHoltWinter)
 pylyHoltWintersModel
-plot(pylyHoltWintersModel,lwd=3)
+plot(pylyHoltWinter)
 #install.packages("forecast")
 #library(forecast)
 #pyly_MzWarKondratPrognoza <- forecast.HoltWinters(pylyHoltWintersModel)
 #plot(pyly_MzWarKondratPrognoza)
-p <- predict(pylyHoltWintersModel, 365, prediction.interval = FALSE)
-plot(pylyHoltWintersModel,p)
+
+p <- forecast:::forecast.HoltWinters(pylyHoltWintersModel, h=1 )
+plot(p)
 #birthsForecast <- forecast.HoltWinters(birthsModel, h=24)
 #plot(birthsForecast)
 ```
+
+
+```{r}
+cov(pogoda_pyly_imp$MzWarKondratPM25_24g,pogoda_pyly_imp$wilgotnosc)
+```
+
+
+
+xg boost
+```{r}
+library(xgboost)
+
+```
+
 
 
 
