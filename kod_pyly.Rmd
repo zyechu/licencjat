@@ -7,12 +7,54 @@ output: html_notebook
 ```{r}
 library(ggplot2)
 library(tidyr)
+library(dplyr)
+library(lubridate)
 
 library(readxl)
-library(ggplot2)
-library(dplyr)
+library(ggpubr)
+library(scales)
+library(cowplot)
+library(VIM)
+library(mlr)
 
 ```
+Nadanie nazw kolumnom i załadowanie danych z folderu pogoda.
+```{r}
+n <- c("id", "nazwa", "rok", "miesiac", "dzien", 
+       "srednia_dobowa_temperatura", "status pomiaru TEMP", "?rednia dobowa wilgotno?? wzgl?dna[%]", "status pomiaru WLGS", "?rednia dobowa pr?dko?ci wiatru[m/s]", "Status pomiaru FWS", "?rednie dobowe zachmurzenie og?lne[oktanty]", "status pomiaru NOS")
+
+files <- list.files(path = "C:/Users/51727/Desktop/licencjat/pogoda", pattern = "*.csv", full.names = TRUE)
+
+pogodaDF <- data.frame()
+
+for(i in 1:length(files)){
+  a <- read.csv(file = files[i], header = F)
+  pogodaDF <- rbind(pogodaDF,a)
+}
+
+names(pogodaDF) <- n
+
+save(pogodaDF, file="pogoda.RData")
+
+load("pogoda.RData")
+
+```
+wczytanie danych z zapisanego wcześniej pliku "pogoda.Rdata"
+```{r}
+
+load("pogoda.RData")
+
+pogodaDF <- janitor::clean_names(pogodaDF)
+
+pogoda_wawa <- pogodaDF %>%
+  filter(nazwa == "WARSZAWA-BIELANY") %>%
+  mutate(czas=paste(rok,miesiac,dzien, sep="-"),
+         czas=ymd(czas)) %>%
+  select(czas, temp=srednia_dobowa_temperatura,    wilgotnosc=rednia_dobowa_wilgotno_wzgl_dna_percent, wiatr=rednia_dobowa_pr_dko_ci_wiatru_m_s, chmury=rednie_dobowe_zachmurzenie_og_lne_oktanty)
+
+summary(pogoda_wawa)
+```
+
 wczytywanie danych
 ```{r}
 pyly <- read_excel("C:/Users/51727/Desktop/licencjat/DanePyly2013-2017.xlsx") %>%                       mutate(czas=as_date(czas)) %>%                                                      select(czas,MzWarTolstojPM10_24g,MzWarKondratPM25_24g)
@@ -20,6 +62,7 @@ head(pyly)
 colnames(pyly,do.NULL = TRUE,prefix = "col") 
 library(lubridate)
 pogoda_pyly <- inner_join(pogoda_wawa, pyly)
+
 ```
 
 imputacja danych dla pyłów
@@ -33,10 +76,43 @@ pogoda_pyly_imp <- kNN(data = pogoda_pyly,
                  dist_var = c("temp", "wilgotnosc", "wiatr", "chmury", "MzWarKondratPM25_24g",  "MzWarTolstojPM10_24g"))
 
 summary(pogoda_pyly_imp)
-
-
 ```
-Dodanie dnia tygodnia i dni weekendowych
+Tworzenie wykresów pogody wraz z zapisem pliku do formatu jpg
+```{r}
+
+temperatura <- ggplot(pogoda_pyly_imp, aes(x=czas,y=temp))+
+  geom_point()+
+  labs(x="Czas",y="Temperatura [°C]",title = "temperatura")+
+  theme_bw()+
+  scale_x_date(breaks = pretty_breaks(6))
+
+wiatr <- ggplot(pogoda_pyly_imp, aes(x=czas,y=wiatr))+
+  geom_point()+
+  labs(x="Czas",y="Prędkość wiatru [m/s]", title = "Prędkość wiatru")+
+  theme_bw()+
+  scale_x_date(breaks = pretty_breaks(6))
+
+zachmurzenie <- ggplot(pogoda_pyly_imp, aes(x=czas,y=chmury))+
+  geom_point()+
+  labs(x="Czas",y="Zachmurzenie ogólne [oktanty]",title = "Zachmurzenie")+
+  theme_bw()+
+  scale_x_date(breaks = pretty_breaks(6))
+
+wilgotnosc <-  ggplot(pogoda_pyly_imp, aes(x=czas,y=wilgotnosc))+
+  geom_point()+
+  labs(x="Czas",y="Wilgotność wzgledna [%]",title = "Wilgotność")+
+  theme_bw()+
+  scale_x_date(breaks = pretty_breaks(6))
+
+laczenie<- plot_grid(temperatura,wiatr,zachmurzenie,labels = "AUTO")
+
+arrange <-ggarrange(temperatura,wiatr,wilgotnosc,zachmurzenie,ncol=2,nrow=2)
+arrange
+ggsave("warunki.jpg",arrange)
+```
+
+
+Dodanie opóźnień dla pyłów(opóźnienie równe 1)
 ```{r}
 pogoda_pyly_imp <- pogoda_pyly_imp %>%
   rename(pm25=MzWarKondratPM25_24g,
@@ -47,8 +123,35 @@ pogoda_pyly_imp <- pogoda_pyly_imp %>%
   #select(c(1:6,9,12:13)) %>%
   arrange(czas)
 pogoda_pyly_imp
+summary(pogoda_pyly_imp)
 ```
+Rysowanie histogramów
+```{r}
+#jpeg(filename ="histogram_pm25.jpeg")
 
+#hist(pogoda_pyly_imp$pm10,xlab="Wielkość pyłu PM10",main = "",ylab = "Częstość",freq = TRUE,breaks = 20,col = "blue",cex.axis=1)
+
+#hist(pogoda_pyly_imp$pm25,xlab="Wielkość pyłu PM25",main = "",ylab = "Częstość",freq = TRUE,breaks = 40,col = "blue",cex.axis=1)
+histogram_pm10 <- ggplot(data= pogoda_pyly_imp)+
+  geom_histogram(mapping = aes(x=pm10),breaks =seq(0,150,
+                                      by=5),fill="blue",col="black")+
+  labs(x="Wielkość pyłu PM10",y="Częstość")+
+  theme_bw()+
+  scale_x_continuous(breaks=seq(0,150,by=10))
+
+histogram_pm25 <- ggplot(data= pogoda_pyly_imp,origin=5)+
+  geom_histogram(mapping = aes(x=pm25),breaks =seq(0,150,
+                                              by=5),fill="blue",col="black")+
+  labs(x="Wielkość pyłu PM25",y="Częstość")+
+  theme_bw()+
+  scale_x_continuous(breaks=seq(0,150,by=10))
+plot(histogram_pm10)
+ggsave("histogram_pm10.jpg")
+plot(histogram_pm25)
+ggsave("histogram_pm25.jpg")
+
+```
+Dni tygodnia
 ```{r}
 pogoda_pyly_imp <- pogoda_pyly_imp %>% mutate(dzien_tygodnia=weekdays(czas),czyWeekend=ifelse(dzien_tygodnia=="sobota"|dzien_tygodnia=="niedziela",TRUE,FALSE))
 summary(pogoda_pyly_imp)
@@ -94,133 +197,222 @@ test <- pogoda_pyly_imp %>%
 
 summary(test)
 ```
-liczba 
+liczba przekroczeń dla pm10 i PM2,5
 ```{r}
+przekroczenia_pm10 <- pogoda_pyly_imp %>% filter(pm10>=50) %>%
+                      arrange(czas)
+przekroczenia_pm10
+
+przekroczenia_pm25 <- pogoda_pyly_imp %>% filter(pm25>25) %>%
+                      arrange(czas)
+przekroczenia_pm25
 
 ```
 
-
+Przebieg rzeczywistych wartości w czasie wraz z dopuszczalną wartością pyłu w powietrzu
 ```{r}
-ggplot(data=pogoda_pyly_imp, aes(x=czas,y=pm25))+geom_point()
-ggplot(data=pogoda_pyly_imp, aes(x=czas,y=pm10))+geom_point()
+ggplot(data=pogoda_pyly_imp, aes(x=czas,y=pm25))+geom_point(col="blue")+
+  labs(x="Czas",y="PM2,5 [µg]")+
+  theme_bw()+
+  theme(axis.title=element_text(size=20,face="bold"),
+        axis.text.x = element_text(face="bold", 
+                           size=14),
+        axis.text.y = element_text(face="bold",  
+                           size=14))+
+  geom_hline(yintercept=25,color="red",size=1)+
+  scale_x_date(breaks = pretty_breaks(6))
+ggsave("pm25.jpg")
+ggplot(data=pogoda_pyly_imp, aes(x=czas,y=pm10))+geom_point(col="blue")+
+  labs(x="Czas",y="PM10 [µg]")+
+  theme_bw()+
+  theme(axis.title=element_text(size=20,face="bold"),
+        axis.text.x = element_text(face="bold", 
+                           size=14),
+        axis.text.y = element_text(face="bold", 
+                           size=14),
+        axis.ticks.x = element_line())+
+  geom_hline(yintercept=50,color="red",size=1)+
+  scale_fill_manual(name = "Type", values = c("pm10" = "red"))+
+  scale_x_date(breaks = pretty_breaks(6))
+ggsave("pm10.jpg")
 ```
-
+model pm25 HW
 ```{r}
-train_hw <- ts(train$pm25, start = c(2013,1), frequency = 365)
+train_hwpm25 <- ts(train$pm25, start = c(2013,1), frequency = 365)
 
-model_hw <- HoltWinters(train_hw)
+model_hwpm25 <- HoltWinters(train_hwpm25)
+model_hwpm25
 
-plot(model_hw)
+plot(model_hwpm25,xlab="Czas",ylab="Wartość pyłu PM2,5 [µg]",main="")
 
-plot(decompose(train_hw))
+plot(decompose(train_hwpm25))
 
-fitted <- as.numeric(model_hw$fitted[,1])
+fitted <- as.numeric(model_hwpm25$fitted[,1])
 train_14 <- train$pm25[-c(1:365)]
 
-train$pm25_hw <- c(rep(NA, 365), fitted)
+train$pm25_hwpm25 <- c(rep(NA, 365), fitted)
+train$pm25_hwpm25
+# blędy prognoz - dane treningowe
+me_hwpm25 <- mean(fitted-train_14)
+me_hwpm25
+mape_hwpm25 <- mean(abs(fitted-train_14)/train_14)
+mape_hwpm25
+# 14,60
+rmse_hwpm25 <-sqrt(mean((fitted-train_14)^2))
+rmse_hwpm25
 
+
+
+
+
+
+
+plot(train$pm25_hwpm25)
 # dane trenujące
 
 # 13,45
 sqrt(mean((fitted-train_14)^2))
 
-# dane testujące
 
-pred <- predict(model_hw, n.ahead = 7)
-xi <- c(1,2,3,4,5,6,7)
+# prognoza na okres 7 następnych dni plus wykres w porównaniu z wartościami rzeczywistymi
+pred <- predict(model_hwpm25, n.ahead = 7)
+pred
+xi <- test$czas
 yi <- as.data.frame(pred)
-predi <- data.frame(xi,yi)
-plot(predi)
+yi
+predi <- data.frame(xi,y1=yi,y2=test$pm25)
 predi
-ggplot(predi,aes(x=xi,y=fit))+geom_point()
 
-# 12,41
-sqrt(mean((as.numeric(pred)-test$pm25)^2))
+# dane testowe
+
+me_hwpm25test <- mean(as.numeric(pred)-test$pm25)
+me_hwpm25test
+mape_hwpm25test <- mean(abs(as.numeric(pred)-test$pm25)/test$pm25)
+mape_hwpm25test
+# 14,60
+rmse_hwpm25test <-sqrt(mean((as.numeric(pred)-test$pm25)^2))
+rmse_hwpm25test
+
+# dane testujące
+plot(model_hwpm25,pred)
+
+hwpm25_wykres <- ggplot(predi,aes(x=xi,y=wartosc,color = variable))+
+  geom_point(aes(y=fit,col="Prognoza"))+
+  geom_point(aes(y=y2, col="Dane rzeczywiste"))+
+  theme_bw()+
+  labs(x="Czas",y="Wartość pyłu PM2,5 [µg]",color="Zmienna")+
+  scale_x_date(breaks = pretty_breaks(6))+
+  expand_limits(y=c(0,50))
+hwpm25_wykres
+#ggsave("hwpm25_wykres.jpg", hwpm25_wykres, height=3)
+
+
 ```
+
+HW treningowe pm25+ wartości rzeczywiste
 ```{r}
-train_hw <- ts(train$pm10, start = c(2013,1), frequency = 365)
 
-model_hw <- HoltWinters(train_hw)
+hw_pm25 <- train %>%
+  select(czas, pm25, pm25_hwpm25) %>%
+  ggplot(aes(x=czas,y=wartosc, color=variable)) + 
+  geom_point(aes(y=pm25,col="Dane rzeczywiste"))+
+  geom_point(aes(y=pm25_hwpm25, col="Prognoza H-W"))+
+  scale_x_date(breaks = pretty_breaks(6))+
+  labs(x="Czas", y = "Wartość pyłu PM2,5 [µg]", color = "Zmienna")+
+  theme_bw()
+hw_pm25
+ggsave("hw_pm25.jpg",hw_pm25,height = 3)
+```
 
-plot(model_hw)
+model pm10 HW
+```{r}
+train_hwpm10 <- ts(train$pm10, start = c(2013,1), frequency = 365)
 
-plot(decompose(train_hw))
+model_hwpm10 <- HoltWinters(train_hwpm10)
+model_hwpm10
+plot(model_hwpm10,xlab="Czas",ylab="Wartość pyłu PM10 [µg]",main="")
 
-fitted <- as.numeric(model_hw$fitted[,1])
+plot(decompose(train_hwpm10))
+
+fitted <- as.numeric(model_hwpm10$fitted[,1])
 train_14 <- train$pm10[-c(1:365)]
 
-train$pm10_hw <- c(rep(NA, 365), fitted)
-
+train$pm10_hwpm10 <- c(rep(NA, 365), fitted)
 # dane trenujące
 
+me_hwpm10 <- mean(fitted-train_14)
+me_hwpm10
+mape_hwpm10 <- mean(abs(fitted-train_14)/train_14)
+mape_hwpm10
 # 14,60
-sqrt(mean((fitted-train_14)^2))
+rmse_hwpm10 <-sqrt(mean((fitted-train_14)^2))
+rmse_hwpm10
+
 
 # dane testujące
 
-pred <- predict(model_hw, n.ahead = 7)
+me_hwpm10test <- mean(as.numeric(pred)-test$pm10)
+me_hwpm10test
+mape_hwpm10test <- mean(abs(as.numeric(pred)-test$pm10)/test$pm10)
+mape_hwpm10test
+rmse_hwpm10test <-sqrt(mean((as.numeric(pred)-test$pm10)^2))
+rmse_hwpm10test
+
+
+rmse_hwpm10 <-sqrt(mean((fitted-train_14)^2))
+rmse_hwpm10
+pred <- predict(model_hwpm10, n.ahead = 7)
+pred
+xi <- test$czas
+yi <- as.data.frame(pred)
+pred
+predict <- data.frame(xi,y1=yi,y2=test$pm10)
+predict
+
+hwpm10_wykres <- ggplot(predict,aes(x=xi,y=wartosc,color = variable))+
+  geom_point(aes(y=fit,col="Prognoza"))+
+  geom_point(aes(y=y2, col="Dane rzeczywiste"))+
+  theme_bw()+
+  labs(x="Czas",y="Wartość pyłu PM10 [µg]",color="Zmienna")+
+  scale_x_date(breaks = pretty_breaks(6))+
+  expand_limits(y=c(0,50))
+hwpm10_wykres
+ggsave("hwpm10_wykres.jpg", hwpm10_wykres, height = 3)
 
 # 16,15
 sqrt(mean((as.numeric(pred)-test$pm10)^2))
 ```
-
-
-
-
-
+HW treningowe pm10
 ```{r}
-cor(pogoda_pyly_imp$pm25,pogoda_pyly_imp$wilgotnosc)
-cor(pogoda_pyly_imp$pm25,pogoda_pyly_imp$temp)
-cor(pogoda_pyly_imp$pm25,pogoda_pyly_imp$wiatr)
-cor(pogoda_pyly_imp$pm25,pogoda_pyly_imp$chmury)
-```
-```{r}
-
-cor(pogoda_pyly_imp$pm10,pogoda_pyly_imp$wilgotnosc,method = "spearman")
-cor(pogoda_pyly_imp$pm10,pogoda_pyly_imp$temp,method = "spearman")
-cor(pogoda_pyly_imp$pm10,pogoda_pyly_imp$wiatr,method = "spearman")
-cor(pogoda_pyly_imp$pm10,pogoda_pyly_imp$chmury,method = "spearman")
+hw_pm10 <- train %>%
+  select(czas, pm10, pm10_hwpm10) %>%
+  ggplot(aes(x=czas,y=wartosc, color=variable)) + 
+  geom_point(aes(y=pm10,col="Dane rzeczywiste"))+
+  geom_point(aes(y=pm10_hwpm10, col="Prognoza H-W"))+
+  scale_x_date(breaks = pretty_breaks(6))+
+  labs(x="Czas", y = "Wartość pyłu PM10 [µg]", color = "Zmienna")+
+  theme_bw()
+hw_pm10
+#ggsave("hw_pm10.jpg",hw_pm10,height = 3)
 ```
 
 
-
-model liniowy dla PM10
-```{r}
-model_liniowy <- lm(MzWarTolstojPM10_24g ~ temp + wilgotnosc + wiatr + chmury, data=train)
-summary(model_liniowy)
-
-train$model_liniowy
-train$model_liniowy <- predict(model_liniowy)
-
-test$model_liniowy <- predict(model_liniowy, newdata = test)
-
-test %>%
-  gather(model, wynik, MzWarTolstojPM10_24g, model_liniowy) %>%
-  ggplot(aes(x=czas, y=wynik, color=model)) + geom_point()
-
-# rmse
-
-sqrt(mean((train$model_liniowy-train$MzWarTolstojPM10_24g)^2))
-# bĹ‚Ä…d rzÄ™du 15 jednostek to chyba sporo
-sqrt(mean((test$model_liniowy-test$MzWarTolstojPM10_24g)^2))
-
-```
-
-model dla pm2.5
+model kknn dla pm2.5
 
 ```{r}
-library(mlr)
+
 pm25finding_k_train <- NULL
 pm25finding_k_test <-NULL
 #install.packages("kknn")
-for(K in c(1:50)){
-  print(paste("K=",K))
   #chyba najlepiej tempp+wiatr+lag_pm25
-dane <- model.frame(pm25 ~ temp  +chmury + wiatr  + lag_pm25, data = train)
+dane <- model.frame(pm25 ~ temp  +chmury + wiatr  + lag_pm25 , data = train)
 
 task <- makeRegrTask(data = dane, target = "pm25")
 task
 
+for(K in c(1:30)){
+  print(paste("K=",K))
+# petla po to by wyznaczyc optymalna wartosc k, w miejsce K należy wprowadzic 6
 lrn <- makeLearner("regr.kknn", k = K)
 lrn
 
@@ -235,14 +427,33 @@ test$pm25_kknn <- dane_test$data$response
 
 train$pm25_kknn <- dane_train$data$response
 
-train %>%
-  select(czas, pm25, pm25_hw, pm25_kknn) %>%
-  gather(model, wynik, -czas) %>%
-  ggplot(aes(x=czas, y=wynik, color=model)) + geom_point()
+# dane treningowe
+me_kknnpm25 <- mean(dane_train$data$response-dane_train$data$truth)
+me_kknnpm25
+mape_kknnpm25 <- mean(abs(dane_train$data$response-dane_train$data$truth)/dane_train$data$truth)
+mape_kknnpm25
+# 14,60
+rmse_kknnpm25 <-sqrt(mean((dane_train$data$response-dane_train$data$truth)^2))
+rmse_kknnpm25
 
-test %>%
-  gather(model, wynik, pm25, pm25_kknn) %>%
-  ggplot(aes(x=czas, y=wynik, color=model)) + geom_point()
+
+# dane testujące
+
+me_kknnpm25test <- mean(test$pm25_kknn-test$pm25)
+me_kknnpm25test
+mape_kknnpm25test <- mean(abs(test$pm25_kknn-test$pm25)/test$pm25)
+mape_kknnpm25test
+# 14,60
+rmse_kknnpm25test <-sqrt(mean((test$pm25_kknn-test$pm25)^2))
+rmse_kknnpm25test
+
+
+
+
+
+
+
+
 
 rmse_train <- sqrt(mean((dane_train$data$response-dane_train$data$truth)^2))
 rmse_train 
@@ -261,18 +472,96 @@ print(paste("rmse dla treningu: ",sqrt(mean((dane_train$data$response-dane_train
 
 # dla k = 10, rmse = 8,37
 # dla k = 7, rmse = 8,25
-# dla k = 8 , rmse 8.147567 najlepsze
+# dla k = 8 , rmse 8.147567 
 print(paste("rmse dla testu: ",sqrt(mean((test$pm25_kknn-test$pm25)^2))))
 }
-pm25finding_k <- data.frame(K=c(1:50),RMSE_treningowe=pm25finding_k_train,RMSE_testowe=pm25finding_k_test)
+pm25finding_k <- data.frame(K=c(1:30),RMSE_treningowe=pm25finding_k_train,RMSE_testowe=pm25finding_k_test)
 pm25finding_k
+#najlepsze  k = 6 rmse  7.07123 rmse_testowe	7.207617
+znajdywanieKpm25 <- ggplot(pm25finding_k, aes(K,y=wartosc, color=variable))+
+  geom_point(aes(y=RMSE_treningowe,col = "Zbiór treningowy"))+
+  geom_point(aes(y=RMSE_testowe,col = "Zbiór testowy"))+
+  labs(y="RMSE",color="Typ danych")+
+  theme_bw()
+znajdywanieKpm25
+
+ggsave("znajdywanieKpm25.jpg",znajdywanieKpm25)
 ```
+
 Schodzenie sie wartości do punktu przecięcia dla pm25.
+
+
+#treningowe kknn pm25
 ```{r}
-ggplot(pm25finding_k, aes(K,y=wartosc, color=variable))+
-  geom_point(aes(y=RMSE_treningowe,col = "Rmse_treningowe"))+
-  geom_point(aes(y=RMSE_testowe,col = "Rmse_testowe"))
+
+wykres_trainkknpm25 <- train %>%
+  select(czas, pm25, pm25_hwpm25, pm25_kknn) %>%
+  ggplot(aes(x=czas,y=wartosc, color=variable)) + 
+  geom_point(aes(y=pm25,col="Dane rzeczywiste"))+
+  geom_point(aes(y=pm25_kknn, col="Prognoza kknn"))+
+  scale_x_date(breaks = pretty_breaks(6))+
+  labs(x="Czas", y = "Wartość pyłu PM2,5 [µg]", color = "Zmienna")+
+  theme_bw()
+wykres_trainkknpm25
+ggsave("wykres_trainkknpm25.jpg",wykres_trainkknpm25,height = 3)
 ```
+
+
+#porównanie treningowych PM25
+
+
+```{r}
+wykres_trainpm25 <- train %>%
+  select(czas, pm25, pm25_hwpm25, pm25_kknn) %>%
+  ggplot(aes(x=czas,y=wartosc, color=variable)) + 
+  geom_point(aes(y=pm25,col="Dane rzeczywiste"))+
+  geom_point(aes(y=pm25_hwpm25, col="Prognoza H-W"))+
+  geom_point(aes(y=pm25_kknn, col="Prognoza kknn"))+
+  scale_x_date(breaks = pretty_breaks(6))+
+  labs(x="Czas", y = "Wartość pyłu PM2,5 [µg]", color = "Zmienna")+
+  theme_bw()
+wykres_trainpm25
+ggsave("PorownaniePM25.jpg",wykres_trainpm25,height = 3)
+```
+
+
+# testowe kknn PM25
+
+
+
+
+Porównanie testowych PM25
+
+
+wykres dla porównania testów pm25
+```{r}
+test <- test %>% mutate (pm25_hw=predi$fit)
+wykres_testpm25 <- test %>%
+  select(czas, pm25, pm25_hw, pm25_kknn) %>%
+  ggplot(aes(x=czas,y=wartosc, color=variable)) + 
+  geom_point(aes(y=pm25,col="Dane rzeczywiste"))+
+  geom_point(aes(y=pm25_hw, col="Prognoza H-W"))+
+  geom_point(aes(y=pm25_kknn, col="Prognoza kknn"))+
+  scale_x_date(breaks = pretty_breaks(6))+
+  labs(x="Czas", y = "Wartość pyłu PM2,5 [µg]", color = "Zmienna")+
+  theme_bw()
+wykres_testpm25
+ggsave("Porownanie_test_pm25.jpg",wykres_testpm25, height = 3)
+```
+```{r}
+
+wykres_testpm25 <- test %>%
+  select(czas, pm25, pm25_hw, pm25_kknn) %>%
+  ggplot(aes(x=czas,y=wartosc, color=variable)) + 
+  geom_point(aes(y=pm25,col="Dane rzeczywiste"))+
+  geom_point(aes(y=pm25_kknn, col="Prognoza kknn"))+
+  scale_x_date(breaks = pretty_breaks(6))+
+  labs(x="Czas", y = "Wartość pyłu PM2,5 [µg]", color = "Zmienna")+
+  theme_bw()
+wykres_testpm25
+ggsave("wykres_testkknpm25.jpg",wykres_testpm25, height = 3) 
+```
+
 
 
 
@@ -284,6 +573,7 @@ dane <- model.frame(pm10 ~ temp + wiatr +chmury  +lag_pm10 , data = train)
 
 task <- makeRegrTask(data = dane, target = "pm10")
 task
+
 pm10finding_k_train <- NULL
 pm10finding_k_test <-NULL
 for(K in c(1:30)){
@@ -301,15 +591,29 @@ dane_test <- predict(mod, newdata = test)
 test$pm10_kknn <- dane_test$data$response
 
 train$pm10_kknn <- dane_train$data$response
+train
+#tworzenie porownania
 
-train %>%
-  select(czas, pm10, pm10_hw, pm10_kknn) %>%
-  gather(model, wynik, -czas) %>%
-  ggplot(aes(x=czas, y=wynik, color=model)) + geom_point()
 
-test %>%
-  gather(model, wynik, pm10, pm10_kknn) %>%
-  ggplot(aes(x=czas, y=wynik, color=model)) + geom_point()
+
+me_kknnpm10 <- mean(dane_train$data$response-dane_train$data$truth)
+me_kknnpm10
+mape_kknnpm10 <- mean(abs(dane_train$data$response-dane_train$data$truth)/dane_train$data$truth)
+mape_kknnpm10
+# 14,60
+rmse_kknnpm10 <-sqrt(mean((dane_train$data$response-dane_train$data$truth)^2))
+rmse_kknnpm10
+
+
+# dane testujące
+
+me_kknnpm10test <- mean(test$pm10_kknn-test$pm10)
+me_kknnpm10test
+mape_kknnpm10test <- mean(abs(test$pm10_kknn-test$pm10)/test$pm10)
+mape_kknnpm10test
+# 14,60
+rmse_kknnpm10test <-sqrt(mean((test$pm10_kknn-test$pm10)^2))
+rmse_kknnpm10test
 
 sqrt(mean((dane_train$data$response-dane_train$data$truth)^2))
 
@@ -326,8 +630,8 @@ pm10finding_k_test <- pm10finding_k_test %>% rbind(rmse_test)
 pm10finding_k_test
 #k=2  3.119478   9.184205
 #k=3  5.230348   7.237597
-#k=4  6.387116   6.325172
-#k=5  7.174525   6.182178 naajlepszy wynik
+#k=4  6.387116   6.325172 naajlepszy wynik
+#k=5  7.174525   6.182178 
 #k=6  7.741089   6.228524 
 #k=7  8.160068    6.24975
 #k=8  8.490508   6.355869
@@ -342,6 +646,13 @@ print(paste("rmse dla testu: ",sqrt(mean((test$pm10_kknn-test$pm10)^2))))
 }
 pm10finding_k <- data.frame(K=c(1:30),RMSE_treningowe=pm10finding_k_train,RMSE_testowe=pm10finding_k_test)
 pm10finding_k
+znajdywanieKpm10 <-ggplot(pm10finding_k, aes(K,y=wartosc, color=variable))+
+  geom_point(aes(y=RMSE_treningowe,col = "Zbiór treningowy"))+
+  geom_point(aes(y=RMSE_testowe,col = "Zbiór testowy"))+
+  labs(y="RMSE",color="Typ danych")+
+  theme_bw()
+znajdywanieKpm10
+ggsave("znajdywanieKpm10.jpg",znajdywanieKpm10,height = 3)
 ```
 
 ```{r}
@@ -352,98 +663,60 @@ ggplot(pm10finding_k, aes(K,y=wartosc, color=variable))+
 
 
 
-model liniowy dla PM2.5
+
+wykres dane treningowe rzeczywiste i knn PM10 
 
 ```{r}
-
-model_liniowy <- lm(MzWarKondratPM25_24g ~ temp + wilgotnosc + wiatr + chmury, data=train)
-summary(model_liniowy)
-
-train$model_liniowy
-train$model_liniowy <- predict(model_liniowy)
-
-test$model_liniowy <- predict(model_liniowy, newdata = test)
-
-test %>%
-  gather(model, wynik, MzWarKondratPM25_24g, model_liniowy) %>%
-  ggplot(aes(x=czas, y=wynik, color=model)) + geom_point()
-
-# rmse
-
-sqrt(mean((train$model_liniowy-train$MzWarKondratPM25_24g)^2))
-# bĹ‚Ä…d rzÄ™du 15 jednostek to chyba sporo
-sqrt(mean((test$model_liniowy-test$MzWarKondratPM25_24g)^2))
-
+wykres_trainpm10 <- train %>%
+  select(czas, pm10, pm10_hwpm10, pm10_kknn) %>%
+  ggplot(aes(x=czas,y=wartosc, color=variable)) + 
+  geom_point(aes(y=pm10,col="Dane rzeczywiste"))+
+  geom_point(aes(y=pm10_kknn, col="Prognoza kknn"))+
+  scale_x_date(breaks = pretty_breaks(6))+
+  labs(x="Czas", y = "Wartość pyłu PM10 [µg]", color = "Zmienna")+
+  theme_bw()
+wykres_trainpm10
+ggsave("wykres_trainkknPM10.jpg",wykres_trainpm10,height = 3)
 ```
-# gradient boosting machine dla pm10
+
+wykres dane treningowe porównanie PM10
+```{r}
+PorownaniePM10 <- train %>% 
+  select(czas, pm10, pm10_hwpm10, pm10_kknn) %>%
+  ggplot(aes(x=czas,y=wartosc, color=variable)) + 
+  geom_point(aes(y=pm10,col="Dane rzeczywiste"))+
+  geom_point(aes(y=pm10_hwpm10, col="Prognoza H-W"))+
+  geom_point(aes(y=pm10_kknn, col="Prognoza kknn"))+
+  scale_x_date(breaks = pretty_breaks(6))+
+  labs(x="Czas", y = "Wartość pyłu PM10 [µg]", color = "Zmienna")+
+  theme_bw()
+PorownaniePM10
+
+ggsave("PorownaniePM10.jpg",PorownaniePM10, height = 3)
+```
+
+
+
+wykres dane testowe rzeczywiste, hw i knn PM10 
 ```{r}
 
-library(mlr)
-
-dane <- model.frame(MzWarTolstojPM10_24g ~ temp + wilgotnosc + wiatr + chmury, data = train)
-dane
-task <- makeRegrTask(data = dane, target = "MzWarTolstojPM10_24g")
-task
-
-lrn <- makeLearner("regr.gbm", n.trees = 100)
-lrn
-
-mod <- train(lrn, task)
-mod
-
-dane_train <- predict(mod, task)
-
-dane_test <- predict(mod, newdata = test)
-
-test$gbm <- dane_test$data$response
-
-test %>%
-  gather(model, wynik, MzWarTolstojPM10_24g, model_liniowy, gbm) %>%
-  ggplot(aes(x=czas, y=wynik, color=model)) + geom_point()
-
-# rmse
-# nieco lepiej, ale nadal bez szaĹ‚u
-
-sqrt(mean((dane_train$data$response-dane_train$data$truth)^2))
-
-sqrt(mean((test$gbm-test$MzWarTolstojPM10_24g)^2))
+test %>% mutate(pm10_hw = predict$fit)
+wykres_train <- test %>% mutate(pm10_hw = predict$fit) %>%
+  select(czas, pm10, pm10_hw, pm10_kknn) %>%
+  ggplot(aes(x=czas,y=wartosc, color=variable)) + 
+  geom_point(aes(y=pm10,col="Dane rzeczywiste"))+
+  geom_point(aes(y=pm10_kknn, col="Prognoza kknn"))+
+  geom_point(aes(y=pm10_hw,col="Dane hw"))+
+  scale_x_date(breaks = pretty_breaks(6))+
+  labs(x="Czas", y = "Wartość pyłu PM10 [µg]", color = "Zmienna")+
+  theme_bw()
+wykres_train
+ggsave("wykres_train_kknnPM10.jpg",wykres_train,height = 3)
 
 ```
 
-# gradient boosting machine dla pm2.5
-```{r}
 
-library(mlr)
 
-dane <- model.frame(MzWarKondratPM25_24g ~ temp + wilgotnosc + wiatr + chmury, data = train)
-dane
-task <- makeRegrTask(data = dane, target = "MzWarKondratPM25_24g")
-task
-
-lrn <- makeLearner("regr.gbm", n.trees = 100)
-lrn
-
-mod <- train(lrn, task)
-mod
-
-dane_train <- predict(mod, task)
-
-dane_test <- predict(mod, newdata = test)
-
-test$gbm <- dane_test$data$response
-
-test %>%
-  gather(model, wynik, MzWarKondratPM25_24g, model_liniowy, gbm) %>%
-  ggplot(aes(x=czas, y=wynik, color=model)) + geom_point()
-
-# rmse
-# nieco lepiej, ale nadal bez szaĹ‚u
-
-sqrt(mean((dane_train$data$response-dane_train$data$truth)^2))
-
-sqrt(mean((test$gbm-test$MzWarKondratPM25_24g)^2))
-
-```
 
 
 

@@ -1,0 +1,74 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+ggplot(data=pogoda_pyly_imp, aes(x=czas,y=pm25))+geom_point(col="blue")+
+  labs(x="Czas",y="PM2,5")+
+  theme(axis.title=element_text(size=20,face="bold"),
+        axis.text.x = element_text(face="bold", color="#993333", 
+                           size=16),
+        axis.text.y = element_text(face="bold", color="#993333", 
+                           size=16))+
+  geom_hline(yintercept=20,color="red",size=1)
+ggsave("pm25.jpg")
+ggplot(data=pogoda_pyly_imp, aes(x=czas,y=pm10))+geom_point(col="blue")+
+  labs(x="Czas",y="PM10")+
+  theme(axis.title=element_text(size=20,face="bold"),
+        axis.text.x = element_text(face="bold", color="#993333", 
+                           size=16),
+        axis.text.y = element_text(face="bold", color="#993333", 
+                           size=16),
+        axis.ticks.x = element_line())+
+  geom_hline(yintercept=50,color="red",size=1)+
+  scale_fill_manual(name = "Type", values = c("pm10" = "red"))
+ggsave("pm10.jpg")
+```
+kod dla pm10
+```{r}
+
+Time = attributes(train_hwpm10)[[1]]
+Time = seq(Time[1],Time[2], length.out=(Time[2]-Time[1])*Time[3])
+td<-decompose(train_hwpm10)
+# Convert td to data frame
+dat = cbind(Time, with(td, data.frame(Observed=x, Trend=trend, Sezonowosc=seasonal, Random=random)))
+
+ggplot(gather(dat, component, value, -Time), aes(Time, value)) +
+  facet_grid(component ~ ., scales="free_y") +
+  geom_line() +
+  theme_bw() +
+  
+  labs(y="", x="Czas") +
+  ggtitle("") +
+  theme(plot.title=element_text(hjust=0.5))
+ggsave("dekompozycjapm10.jpg")
+```
+kod dla pm25
+```{r}
+
+Time = attributes(train_hwpm25)[[1]]
+Time = seq(Time[1],Time[2], length.out=(Time[2]-Time[1])*Time[3])
+td<-decompose(train_hwpm25)
+# Convert td to data frame
+dat = cbind(Time, with(td, data.frame(Observed=x, Trend=trend, seasonal=seasonal, random=random)))
+
+ggplot(gather(dat, component, value, -Time), aes(Time, value)) +
+  facet_grid(component ~ ., scales="free_y") +
+  geom_line() +
+  theme_bw() +
+  labs(y="", x="Czas") +
+  ggtitle("") +
+  theme(plot.title=element_text(hjust=0.5))
+ggsave("dekompozycjapm25.jpg")
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.

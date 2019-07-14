@@ -1,112 +1,16 @@
 
-Nadanie nazw kolumnom i zgranie danych dotycz?cych o pogodzie.
-```{r}
-n <- c("id", "nazwa", "rok", "miesiac", "dzien", 
-       "srednia_dobowa_temperatura", "status pomiaru TEMP", "?rednia dobowa wilgotno?? wzgl?dna[%]", "status pomiaru WLGS", "?rednia dobowa pr?dko?ci wiatru[m/s]", "Status pomiaru FWS", "?rednie dobowe zachmurzenie og?lne[oktanty]", "status pomiaru NOS")
-
-files <- list.files(path = "C:/Users/51727/Desktop/licencjat/pogoda", pattern = "*.csv", full.names = TRUE)
-
-pogodaDF <- data.frame()
-
-for(i in 1:length(files)){
-  a <- read.csv(file = files[i], header = F)
-  pogodaDF <- rbind(pogodaDF,a)
-}
-
-names(pogodaDF) <- n
-
-save(pogodaDF, file="pogoda.RData")
-
-load("pogoda.RData")
-
-```
-
-
-install.packages("lubridate")
-```{r}
-library(dplyr)
-library(lubridate)
-
-
-```
-```{r}
-
-load("pogoda.RData")
-
-pogodaDF <- janitor::clean_names(pogodaDF)
-
-pogoda_wawa <- pogodaDF %>%
-  filter(nazwa == "WARSZAWA-BIELANY") %>%
-  mutate(czas=paste(rok,miesiac,dzien, sep="-"),
-         czas=ymd(czas)) %>%
-  select(czas, temp=srednia_dobowa_temperatura,    wilgotnosc=rednia_dobowa_wilgotno_wzgl_dna_percent, wiatr=rednia_dobowa_pr_dko_ci_wiatru_m_s, chmury=rednie_dobowe_zachmurzenie_og_lne_oktanty)
-
-summary(pogoda_wawa)
-```
-
-
-Pogoda dla Warszawy
 
 
 
 
-```{r}
-library(dplyr)
-library(ggplot2)
-pogodaWarszawa <- janitor::clean_names(pogodaWarszawa)
-
-pogodaWarszawa %>%
-  filter(nazwa == "WARSZAWA-BIELANY") %>%
-ggplot(aes(x=data,y=srednia_dobowa_temperatura))+geom_point()
-```
 
 
 
-```{r}
-pogodaWarszawa <- janitor::clean_names(pogodaWarszawa)
-pogodaWarszawa %>%
-  filter(nazwa == "WARSZAWA-BIELANY") %>%
-ggplot(aes(x=data,y=rednia_dobowa_wilgotno_wzgl_dna_percent))+geom_point()
 
-```
 
-```{r}
-pogodaWarszawa %>%
-  filter(nazwa == "WARSZAWA-BIELANY") %>%
-ggplot(aes(x=data,y=rednia_dobowa_pr_dko_ci_wiatru_m_s))+geom_point()
 
-```
 
-Wyznaczenie linii wielomianu dla pogody
-```{r}
-library(stats)
-library(splines)
-library(dplyr)
-library(grid)
-library(tibble)
-library(ggplot2)
-library(modelr)
-library(tidyverse)
-library(tidyr)
 
-temperatura <- pogodaWarszawa %>% select(x=data,y=srednia_dobowa_temperatura)
 
-mod1 <-lm(y ~ ns(x, df=1), data=temperatura)
-mod2 <-lm(y ~ ns(x, 2), data=temperatura)
-mod3 <-lm(y ~ ns(x, 3), data=temperatura)
-mod4 <-lm(y ~ ns(x, 4), data=temperatura)
-mod5 <-lm(y ~ ns(x, df=25), data=temperatura)
-
-grid <- temperatura %>% 
-  data_grid(x = seq_range(x, n=50,expand = 0.1)) %>%
-  gather_predictions(mod1,mod2,mod3,mod4,mod5, .pred = "y")
-
-ggplot(temperatura, aes(x,y)) + 
-  geom_point() +
-  geom_line(data = grid,color ="red") + 
-  facet_wrap(~ model)
-
-```
-```
 
 
